@@ -1,0 +1,49 @@
+# =============================================================================
+# White-Box coverage configuration for Foci-Med.
+# Enforces BOTH statement and branch coverage, failing the build under 90%.
+# Used by: coverage run --rcfile=tests/whitebox/.coveragerc -m pytest
+# =============================================================================
+
+[run]
+# Measure branch (decision) coverage in addition to statement coverage.
+branch = True
+
+# INJECT YOUR LOGIC: point 'source' at your application package(s) so coverage
+# measures product code, not the tests themselves.
+source =
+    .
+
+# Exclude tests, virtualenvs, and tooling from the coverage denominator.
+omit =
+    */tests/*
+    */.venv/*
+    */venv/*
+    */site-packages/*
+    setup.py
+    conftest.py
+
+[report]
+# Hard gate: the combined statement+branch coverage must be >= 90%.
+fail_under = 90
+
+# Require branch data in the report and show lines still missing coverage.
+show_missing = True
+skip_covered = False
+precision = 2
+
+# Lines that legitimately never need coverage.
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+    @abstractmethod
+
+[json]
+# Emitted by `coverage json` and ingested by the orchestrator/dashboard.
+output = coverage.json
+pretty_print = True
+
+[html]
+directory = htmlcov

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+*.cover
+.coverage
+coverage.xml
+
+# Environment
+.env
+*.env.local
+*.env.production
+
+# Node / Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.suo
+*.user
+
+# Temp / uploads
+/tmp/
+focimed_uploads/
+
+# Locust / test output
+locust_report/
+foci_omni_telemetry.json
+*.json.report

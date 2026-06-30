@@ -1,0 +1,16 @@
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+asyncpg>=0.29.0
+psycopg2-binary>=2.9.9
+python-dotenv>=1.0.0
+pydantic>=2.7.0
+
+# Test runners (used by the subprocess runner)
+pytest>=8.2.0
+pytest-asyncio>=0.23.0
+pytest-json-report>=1.5.0
+
+# Existing harness deps
+locust>=2.28.0
+bandit>=1.7.8
+requests>=2.32.0

@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-base:    #0a0f1e;
+    --bg-surface: #0f1729;
+    --bg-card:    #141e35;
+    --bg-card2:   #1a2540;
+    --border:     #1e3058;
+    --text-muted: #64748b;
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    background-color: var(--bg-base);
+    color: #e2e8f0;
+  }
+}
+
+@layer utilities {
+  /* ── Scrollbar ─────────────────────────────────────────────────────────── */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #1e3058 transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 5px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: #1e3058;
+    border-radius: 3px;
+  }
+
+  /* ── Glass card ────────────────────────────────────────────────────────── */
+  .glass {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+  }
+  .glass-hover {
+    @apply glass transition-colors;
+  }
+  .glass-hover:hover {
+    background: var(--bg-card2);
+    border-color: #2a4070;
+  }
+
+  /* ── Glow utilities ────────────────────────────────────────────────────── */
+  .glow-blue   { box-shadow: 0 0 20px rgba(59, 130, 246, 0.15); }
+  .glow-red    { box-shadow: 0 0 20px rgba(239, 68,  68,  0.15); }
+  .glow-green  { box-shadow: 0 0 20px rgba(34,  197, 94,  0.15); }
+  .glow-purple { box-shadow: 0 0 20px rgba(139, 92,  246, 0.15); }
+
+  /* ── Risk badge colours ─────────────────────────────────────────────────── */
+  .risk-critical { @apply bg-red-900/60 text-red-300 border border-red-700/50; }
+  .risk-high     { @apply bg-orange-900/60 text-orange-300 border border-orange-700/50; }
+  .risk-medium   { @apply bg-yellow-900/60 text-yellow-300 border border-yellow-700/50; }
+  .risk-low      { @apply bg-green-900/60 text-green-300 border border-green-700/50; }
+  .risk-clear    { @apply bg-emerald-900/60 text-emerald-300 border border-emerald-700/50; }
+
+  /* ── Terminal log colors ────────────────────────────────────────────────── */
+  .log-error   { @apply text-red-400; }
+  .log-warning { @apply text-yellow-400; }
+  .log-success { @apply text-green-400; }
+  .log-info    { @apply text-blue-300; }
+  .log-default { @apply text-slate-300; }
+
+  /* ── Pulsing dot ────────────────────────────────────────────────────────── */
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+  .pulse-dot {
+    animation: pulse-dot 1.4s ease-in-out infinite;
+  }
+}

@@ -1,0 +1,67 @@
+# =============================================================================
+# Foci-Med QA Harness — Local Dockerized PostgreSQL Sandbox
+# -----------------------------------------------------------------------------
+# Spins up an isolated PostgreSQL 16 instance for HIPAA / POPIA compliance
+# testing. The init.sql script is mounted into the official image's
+# entrypoint directory and executed once, on first container start, against
+# the freshly created 'focimed_core' database.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL 16 — primary clearinghouse datastore under test
+  # ---------------------------------------------------------------------------
+  focimed-db:
+    image: postgres:16-bookworm          # Pinned major version for reproducibility
+    container_name: focimed_postgres
+    restart: unless-stopped
+
+    environment:
+      # Superuser bootstrap credentials. The superuser is used ONLY for
+      # administration and data seeding; RLS is validated through the
+      # non-superuser 'app_user' role created in init.sql.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-focimed_local_secret}
+      POSTGRES_DB: focimed_core           # Default database created on first boot
+      # Deterministic locale + checksums for trustworthy test runs
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+      PGDATA: /var/lib/postgresql/data/pgdata
+
+    ports:
+      # Host:Container — expose only on loopback to avoid leaking PHI locally
+      - "127.0.0.1:5432:5432"
+
+    volumes:
+      # Durable data directory so the database survives container restarts
+      - focimed_pgdata:/var/lib/postgresql/data
+      # Initialization script — runs alphabetically on an EMPTY data dir only.
+      # Mounted read-only so the container cannot mutate the source of truth.
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
+    networks:
+      - focimed_net
+
+    # Block traffic until Postgres is genuinely ready to accept connections,
+    # so dependent services / test runners don't race the boot sequence.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d focimed_core"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+# -----------------------------------------------------------------------------
+# Isolated bridge network — keeps the sandbox off the default Docker bridge
+# -----------------------------------------------------------------------------
+networks:
+  focimed_net:
+    name: focimed_net
+    driver: bridge
+
+# -----------------------------------------------------------------------------
+# Named volume — local persistence for the PostgreSQL data directory
+# -----------------------------------------------------------------------------
+volumes:
+  focimed_pgdata:
+    name: focimed_pgdata
+    driver: local

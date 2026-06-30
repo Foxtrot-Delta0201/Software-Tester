@@ -1,0 +1,27 @@
+# =============================================================================
+# Foci-Med QA Harness — Python 3.11 test environment
+# Install with:  pip install -r requirements.txt
+# =============================================================================
+
+# --- Core DB drivers --------------------------------------------------------
+psycopg2-binary==2.9.9   # Sync PostgreSQL driver (Suites A & B)
+asyncpg==0.29.0          # Async PostgreSQL driver (Suite C concurrency/chaos)
+
+# --- Test framework ---------------------------------------------------------
+pytest==8.2.2            # Test runner
+pytest-asyncio==0.23.7  # Async test support (Suite C)
+pytest-json-report==1.5.0  # Emits machine-readable JSON consumed by report_compiler.py
+
+# --- Configuration ----------------------------------------------------------
+python-dotenv==1.0.1    # Loads DB credentials from a local .env file
+
+# --- Orchestrated test runners (Universal Orchestrator) ---------------------
+coverage==7.5.3         # White-box statement + branch coverage (.coveragerc gate)
+locust==2.29.1          # Non-functional: load / stress / spike / soak
+bandit==1.7.9           # Security/grey-box static analysis
+requests==2.32.3        # Integration + black-box HTTP tests
+playwright==1.44.0      # End-to-end / UI (Selenium is an alternative)
+
+# --- QA telemetry dashboard -------------------------------------------------
+streamlit==1.36.0       # Interactive QA dashboard (qa_dashboard.py)
+plotly==5.22.0          # Gauges + performance charts

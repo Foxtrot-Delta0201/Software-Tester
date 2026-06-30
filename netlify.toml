@@ -1,0 +1,37 @@
+# Foci-Med Harness — Netlify deployment config
+#
+# Frontend (React/Vite) builds to frontend/dist/ and is served as a static site.
+# All /api/* requests are proxied to the backend URL you configure via the
+# VITE_API_URL environment variable in the Netlify dashboard.
+#
+# Setup checklist
+# ───────────────
+# 1. Deploy your FastAPI backend somewhere (Railway, Render, Fly.io, or locally
+#    via ngrok for testing).
+# 2. In Netlify: Site → Environment variables → add
+#      VITE_API_URL = https://your-backend-url.com
+# 3. Push this repo; Netlify runs `npm run build` inside frontend/ automatically.
+
+[build]
+  base    = "frontend"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# SPA fallback — every path that doesn't match a file returns index.html so
+# React Router can handle client-side navigation.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200
+
+# Proxy /api/* to the running backend. Netlify uses the BACKEND_URL env var
+# at build time; set it in the Netlify dashboard alongside VITE_API_URL.
+# (Remove or adjust this block once you have a permanent backend URL.)
+[[redirects]]
+  from   = "/api/*"
+  to     = ":BACKEND_URL/api/:splat"
+  status = 200
+  force  = true
