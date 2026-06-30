@@ -199,7 +199,7 @@ export default function DataSeeder() {
                     </div>
                   ))}
               </div>
-              {done.stats.elapsed_s && (
+              {!!done.stats.elapsed_s && (
                 <p className="text-xs text-slate-400 mt-2 text-center">
                   Completed in {done.stats.elapsed_s as number}s
                 </p>
