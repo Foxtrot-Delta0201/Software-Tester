@@ -1,25 +1,12 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Shield, Play, RotateCcw, ChevronDown, ChevronRight,
   CheckSquare, Square, Loader2, Target, Zap,
 } from 'lucide-react'
 import { api, openStream, LogEvent, AuditReport as AuditReportType } from '../api'
+import { CYBER_CATEGORIES, CyberCategory } from '../catalog'
 import AuditReport from '../components/AuditReport'
 import LogStream from '../components/LogStream'
-
-// ── Types ──────────────────────────────────────────────────────────────────── //
-interface CyberTest {
-  id: string; name: string; description: string
-  automated: boolean; severity: string; engine: string
-}
-
-interface CyberCategory {
-  id: string; name: string; tests: CyberTest[]
-}
-
-interface CyberCatalog {
-  cyber_categories: CyberCategory[]
-}
 
 // ── Category accordion ─────────────────────────────────────────────────────── //
 function CyberCategoryRow({
@@ -31,14 +18,13 @@ function CyberCategoryRow({
 }) {
   const [open, setOpen] = useState(false)
   const allSel  = cat.tests.every(t => selected.has(t.id))
-  const someSel = cat.tests.some(t => selected.has(t.id))
+  const someSel = !allSel && cat.tests.some(t => selected.has(t.id))
+  const selCount = cat.tests.filter(t => selected.has(t.id)).length
 
   function toggleAll() {
     if (allSel) cat.tests.forEach(t => onToggle(t.id))
     else        cat.tests.filter(t => !selected.has(t.id)).forEach(t => onToggle(t.id))
   }
-
-  const selectedCount = cat.tests.filter(t => selected.has(t.id)).length
 
   return (
     <div className="overflow-hidden rounded-xl border border-red-900/30"
@@ -54,9 +40,9 @@ function CyberCategoryRow({
               : <Square size={16} />}
         </button>
         <span className="flex-1 text-sm font-semibold text-red-100">{cat.name}</span>
-        <span className="text-xs text-red-400/60">{selectedCount}/{cat.tests.length}</span>
+        <span className="text-xs text-red-400/60">{selCount}/{cat.tests.length}</span>
         {open
-          ? <ChevronDown size={14} className="text-red-400/40" />
+          ? <ChevronDown  size={14} className="text-red-400/40" />
           : <ChevronRight size={14} className="text-red-400/40" />}
       </div>
 
@@ -76,15 +62,15 @@ function CyberCategoryRow({
                   <span className="text-xs font-medium text-red-100">{t.name}</span>
                   <span className="text-[10px] text-red-400/50 font-mono">{t.engine}</span>
                   {!t.automated && (
-                    <span className="text-[10px] px-1.5 py-0 rounded bg-yellow-900/40 text-yellow-400">manual</span>
+                    <span className="text-[10px] px-1.5 rounded bg-yellow-900/40 text-yellow-400">manual</span>
                   )}
                 </div>
                 <div className="text-[11px] text-red-300/40 mt-0.5 line-clamp-1">{t.description}</div>
               </div>
               <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
-                t.severity === 'CRITICAL' ? 'risk-critical' :
-                t.severity === 'HIGH'     ? 'risk-high'     :
-                t.severity === 'MEDIUM'   ? 'risk-medium'   : 'risk-low'
+                t.severity === 'critical' ? 'risk-critical' :
+                t.severity === 'high'     ? 'risk-high'     :
+                t.severity === 'medium'   ? 'risk-medium'   : 'risk-low'
               }`}>{t.severity}</span>
             </label>
           ))}
@@ -96,8 +82,6 @@ function CyberCategoryRow({
 
 // ── Main page ──────────────────────────────────────────────────────────────── //
 export default function CyberMode() {
-  const [cyberCats,  setCyberCats]  = useState<CyberCategory[]>([])
-  const [loading,    setLoading]    = useState(true)
   const [selected,   setSelected]   = useState<Set<string>>(new Set())
   const [targetUrl,  setTargetUrl]  = useState('http://localhost:3000')
   const [projectDir, setProjectDir] = useState('')
@@ -108,15 +92,8 @@ export default function CyberMode() {
   const [report,     setReport]     = useState<AuditReportType | null>(null)
   const [error,      setError]      = useState<string | null>(null)
 
-  useEffect(() => {
-    api.catalog()
-       .then((d: unknown) => {
-         const data = d as CyberCatalog
-         setCyberCats(data.cyber_categories ?? [])
-       })
-       .catch(() => setError('Failed to load catalog'))
-       .finally(() => setLoading(false))
-  }, [])
+  const totalTests = useMemo(() => CYBER_CATEGORIES.reduce((s, c) => s + c.tests.length, 0), [])
+  const allIds     = useMemo(() => CYBER_CATEGORIES.flatMap(c => c.tests.map(t => t.id)), [])
 
   function toggleTest(id: string) {
     setSelected(prev => {
@@ -126,19 +103,17 @@ export default function CyberMode() {
     })
   }
 
-  const allTests = useMemo(() => cyberCats.flatMap(c => c.tests.map(t => t.id)), [cyberCats])
-
-  function selectAll()  { setSelected(new Set(allTests)) }
+  function selectAll()  { setSelected(new Set(allIds)) }
   function selectNone() { setSelected(new Set()) }
 
   async function runCyber() {
-    if (selected.size === 0 || !targetUrl) return
+    if (selected.size === 0) return
     setError(null); setLogs([]); setReport(null); setProgress(0)
     setRunning(true)
     try {
       const res = await api.runCyber({
-        test_ids: [...selected],
-        target_url: targetUrl,
+        test_ids:    [...selected],
+        target_url:  targetUrl,
         project_dir: projectDir || undefined,
       })
 
@@ -157,7 +132,7 @@ export default function CyberMode() {
         }
       })
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to start')
+      setError(e instanceof Error ? e.message : 'Backend not connected — deploy the backend and set VITE_API_URL to run tests.')
       setRunning(false)
     }
   }
@@ -178,7 +153,9 @@ export default function CyberMode() {
           </div>
           <div>
             <h1 className="text-xl font-black text-red-100 tracking-wide">CYBER MODE</h1>
-            <p className="text-xs text-red-400/60">22 categories · Advanced penetration & security testing</p>
+            <p className="text-xs text-red-400/60">
+              {CYBER_CATEGORIES.length} categories · {totalTests} tests · Advanced penetration & security testing
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -186,7 +163,8 @@ export default function CyberMode() {
           <span className="text-xs text-red-400/70 font-mono">SECURITY SUITE ACTIVE</span>
           <button onClick={reset}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs
-                             text-red-400/60 hover:text-red-300 border border-red-900/40 hover:border-red-700/40 transition-all">
+                             text-red-400/60 hover:text-red-300 border border-red-900/40
+                             hover:border-red-700/40 transition-all">
             <RotateCcw size={12} /> Reset
           </button>
         </div>
@@ -195,13 +173,13 @@ export default function CyberMode() {
       {/* Target config */}
       <div className="p-4 rounded-xl border border-red-900/30 space-y-3"
            style={{ background: 'rgba(30,0,0,0.5)' }}>
-        <div className="flex items-center gap-2 mb-1">
+        <div className="flex items-center gap-2">
           <Target size={14} className="text-red-400" />
           <span className="text-sm font-semibold text-red-200">Target Configuration</span>
         </div>
         <div className="flex gap-3 flex-wrap">
           <div className="flex-1 min-w-48">
-            <label className="text-xs text-red-400/60 mb-1 block">Target URL *</label>
+            <label className="text-xs text-red-400/60 mb-1 block">Target URL</label>
             <input
               value={targetUrl}
               onChange={e => setTargetUrl(e.target.value)}
@@ -223,7 +201,7 @@ export default function CyberMode() {
         </div>
       </div>
 
-      {/* Select controls + run button */}
+      {/* Controls */}
       <div className="flex items-center gap-3 flex-wrap">
         <button onClick={selectAll}  className="text-xs text-red-400 hover:text-red-300 underline">Select All</button>
         <button onClick={selectNone} className="text-xs text-red-400/50 hover:text-red-300 underline">None</button>
@@ -237,17 +215,19 @@ export default function CyberMode() {
                      text-white transition-all glow-red"
         >
           {running ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />}
-          {running ? 'Running Cyber Tests…' : `Launch ${selected.size || ''} Tests`}
+          {running ? 'Running Cyber Tests…' : `Launch ${selected.size > 0 ? selected.size : ''} Tests`}
         </button>
       </div>
 
       {/* Error */}
-      {error && <div className="p-3 rounded-lg text-sm text-red-400 border border-red-900/40 bg-red-950/30">{error}</div>}
+      {error && (
+        <div className="p-3 rounded-lg text-sm text-red-400 border border-red-900/40 bg-red-950/30">{error}</div>
+      )}
 
       {/* Progress */}
       {running && (
         <div>
-          <div className="flex items-center justify-between text-xs text-red-400/60 mb-1">
+          <div className="flex justify-between text-xs text-red-400/60 mb-1">
             <span>Executing cyber tests…</span><span>{Math.round(progress)}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-red-950/60 overflow-hidden">
@@ -276,24 +256,11 @@ export default function CyberMode() {
       )}
 
       {/* Category grid */}
-      {loading && (
-        <div className="flex items-center gap-2 text-red-400/50 text-sm">
-          <Loader2 size={16} className="animate-spin" /> Loading cyber categories…
-        </div>
-      )}
-
-      {!loading && (
-        <div className="space-y-2">
-          {cyberCats.map(cat => (
-            <CyberCategoryRow
-              key={cat.id}
-              cat={cat}
-              selected={selected}
-              onToggle={toggleTest}
-            />
-          ))}
-        </div>
-      )}
+      <div className="space-y-2">
+        {CYBER_CATEGORIES.map(cat => (
+          <CyberCategoryRow key={cat.id} cat={cat} selected={selected} onToggle={toggleTest} />
+        ))}
+      </div>
     </div>
   )
 }

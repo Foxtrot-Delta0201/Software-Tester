@@ -1,28 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
-  Box, Play, RotateCcw, CheckSquare, Square, Loader2,
-  Server, ChevronDown, ChevronRight, Zap,
+  Box, Play, RotateCcw, CheckSquare, Square,
+  Loader2, Server, ChevronDown, ChevronRight, Zap,
 } from 'lucide-react'
 import { api, openStream, LogEvent, AuditReport as AuditReportType } from '../api'
+import { SANDBOX_TYPES, SandboxType } from '../catalog'
 import AuditReport from '../components/AuditReport'
 import LogStream from '../components/LogStream'
 
-// ── Types ──────────────────────────────────────────────────────────────────── //
-interface SandboxTest {
-  id: string; name: string; description: string
-  automated: boolean; severity: string
-}
-
-interface SandboxType {
-  id: string; name: string; description: string
-  tests: SandboxTest[]
-}
-
-interface SandboxCatalog {
-  sandbox_types: SandboxType[]
-}
-
-// ── Sandbox type card ──────────────────────────────────────────────────────── //
+// ── Sandbox card ───────────────────────────────────────────────────────────── //
 function SandboxCard({
   sb, isActive, selected, onSelect, onToggleTest,
 }: {
@@ -33,45 +19,48 @@ function SandboxCard({
   onToggleTest: (id: string) => void
 }) {
   const [open, setOpen] = useState(false)
-  const count = sb.tests.filter(t => selected.has(t.id)).length
+  const selCount = sb.tests.filter(t => selected.has(t.id)).length
 
   return (
     <div
-      className={`rounded-xl border transition-all cursor-pointer overflow-hidden ${
+      className={`rounded-xl border transition-all overflow-hidden ${
         isActive
-          ? 'border-green-500/60 glow-green'
-          : 'border-green-900/30 hover:border-green-700/40'
+          ? 'border-green-500/60 glow-green cursor-default'
+          : 'border-green-900/30 hover:border-green-700/40 cursor-pointer'
       }`}
       style={{ background: isActive ? 'rgba(0,30,10,0.7)' : 'rgba(5,15,10,0.5)' }}
     >
-      {/* Card header */}
-      <div className="flex items-center gap-3 px-4 py-3" onClick={onSelect}>
+      <div className="flex items-center gap-3 px-4 py-3" onClick={isActive ? undefined : onSelect}>
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
           isActive ? 'bg-green-600/30' : 'bg-green-900/20'
         }`}>
           <Server size={16} className={isActive ? 'text-green-400' : 'text-green-700'} />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className={`text-sm font-semibold ${isActive ? 'text-green-300' : 'text-green-100/60'}`}>
               {sb.name}
             </span>
             {isActive && (
-              <span className="text-[10px] px-1.5 py-0 rounded bg-green-600/30 text-green-400 font-semibold pulse-dot">
+              <span className="text-[10px] px-1.5 rounded bg-green-600/30 text-green-400 font-semibold pulse-dot">
                 ACTIVE
               </span>
             )}
           </div>
           <div className="text-[11px] text-green-400/40 line-clamp-1">{sb.description}</div>
         </div>
-        <span className="text-xs text-green-400/50">{count}/{sb.tests.length}</span>
+        {!isActive && (
+          <span className="text-[10px] text-green-700 border border-green-900/40 px-2 py-0.5 rounded">
+            Activate
+          </span>
+        )}
+        {isActive && <span className="text-xs text-green-400/50">{selCount}/{sb.tests.length}</span>}
       </div>
 
-      {/* Tests accordion */}
       {isActive && (
         <>
           <div
-            className="flex items-center gap-2 px-4 py-2 border-t border-green-900/30 hover:bg-green-950/20"
+            className="flex items-center gap-2 px-4 py-2 border-t border-green-900/30 hover:bg-green-950/20 cursor-pointer"
             onClick={() => setOpen(o => !o)}
           >
             {open ? <ChevronDown size={12} className="text-green-400/40" /> : <ChevronRight size={12} className="text-green-400/40" />}
@@ -81,7 +70,10 @@ function SandboxCard({
             <div className="flex-1" />
             <button
               className="text-[10px] text-green-400/60 hover:text-green-300 underline"
-              onClick={e => { e.stopPropagation(); sb.tests.forEach(t => { if (!selected.has(t.id)) onToggleTest(t.id) }) }}
+              onClick={e => {
+                e.stopPropagation()
+                sb.tests.forEach(t => { if (!selected.has(t.id)) onToggleTest(t.id) })
+              }}
             >
               Select All
             </button>
@@ -103,8 +95,9 @@ function SandboxCard({
                     <div className="text-[11px] text-green-400/40 mt-0.5 line-clamp-1">{t.description}</div>
                   </div>
                   <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${
-                    t.severity === 'HIGH'   ? 'risk-high'   :
-                    t.severity === 'MEDIUM' ? 'risk-medium' : 'risk-low'
+                    t.severity === 'critical' ? 'risk-critical' :
+                    t.severity === 'high'     ? 'risk-high'     :
+                    t.severity === 'medium'   ? 'risk-medium'   : 'risk-low'
                   }`}>{t.severity}</span>
                 </label>
               ))}
@@ -118,29 +111,17 @@ function SandboxCard({
 
 // ── Main page ──────────────────────────────────────────────────────────────── //
 export default function SandboxPage() {
-  const [sandboxTypes, setSandboxTypes] = useState<SandboxType[]>([])
-  const [loading,      setLoading]      = useState(true)
-  const [activeId,     setActiveId]     = useState<string | null>(null)
-  const [selected,     setSelected]     = useState<Set<string>>(new Set())
-  const [targetUrl,    setTargetUrl]    = useState('')
-  const [projectDir,   setProjectDir]   = useState('')
+  const [activeId,   setActiveId]   = useState<string | null>(null)
+  const [selected,   setSelected]   = useState<Set<string>>(new Set())
+  const [targetUrl,  setTargetUrl]  = useState('')
+  const [projectDir, setProjectDir] = useState('')
 
-  const [running,      setRunning]      = useState(false)
-  const [logs,         setLogs]         = useState<LogEvent[]>([])
-  const [progress,     setProgress]     = useState(0)
-  const [report,       setReport]       = useState<AuditReportType | null>(null)
-  const [error,        setError]        = useState<string | null>(null)
-  const [envStatus,    setEnvStatus]    = useState<string>('idle')
-
-  useEffect(() => {
-    api.catalog()
-       .then((d: unknown) => {
-         const data = d as SandboxCatalog
-         setSandboxTypes(data.sandbox_types ?? [])
-       })
-       .catch(() => setError('Failed to load sandbox types'))
-       .finally(() => setLoading(false))
-  }, [])
+  const [running,    setRunning]    = useState(false)
+  const [logs,       setLogs]       = useState<LogEvent[]>([])
+  const [progress,   setProgress]   = useState(0)
+  const [report,     setReport]     = useState<AuditReportType | null>(null)
+  const [error,      setError]      = useState<string | null>(null)
+  const [envStatus,  setEnvStatus]  = useState<string>('idle')
 
   function toggleTest(id: string) {
     setSelected(prev => {
@@ -151,11 +132,10 @@ export default function SandboxPage() {
   }
 
   function activateSandbox(id: string) {
-    const prev = activeId
-    setActiveId(id === prev ? null : id)
-    setEnvStatus(id === prev ? 'idle' : 'ready')
+    setActiveId(id)
+    setEnvStatus('ready')
     setSelected(new Set())
-    setReport(null); setLogs([]); setProgress(0)
+    setReport(null); setLogs([]); setProgress(0); setError(null)
   }
 
   async function runSandbox() {
@@ -164,9 +144,9 @@ export default function SandboxPage() {
     setRunning(true); setEnvStatus('running')
     try {
       const res = await api.runSandbox({
-        sandbox_id: activeId,
-        test_ids:   [...selected],
-        target_url: targetUrl || undefined,
+        sandbox_id:  activeId,
+        test_ids:    [...selected],
+        target_url:  targetUrl  || undefined,
         project_dir: projectDir || undefined,
       })
 
@@ -176,8 +156,7 @@ export default function SandboxPage() {
         if (ev.type === 'progress' && ev.value != null) setProgress(ev.value)
         if (ev.done) {
           close()
-          setRunning(false)
-          setEnvStatus('done')
+          setRunning(false); setEnvStatus('done')
           if (ev.audit_id) {
             api.getAudit(res.job_id)
                .then(r => setReport(r as unknown as AuditReportType))
@@ -186,7 +165,7 @@ export default function SandboxPage() {
         }
       })
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to start')
+      setError(e instanceof Error ? e.message : 'Backend not connected — deploy the backend and set VITE_API_URL to run tests.')
       setRunning(false); setEnvStatus('error')
     }
   }
@@ -196,21 +175,15 @@ export default function SandboxPage() {
     setSelected(new Set()); setError(null); setActiveId(null); setEnvStatus('idle')
   }
 
-  const activeSb = sandboxTypes.find(s => s.id === activeId)
+  const activeSb = SANDBOX_TYPES.find(s => s.id === activeId)
 
-  const statusLabel: Record<string, string> = {
-    idle:    'No environment active',
-    ready:   'Environment ready',
-    running: 'Tests running…',
-    done:    'Run complete',
-    error:   'Error',
-  }
   const statusColor: Record<string, string> = {
-    idle:    'text-slate-500',
-    ready:   'text-green-400',
-    running: 'text-yellow-400',
-    done:    'text-green-300',
-    error:   'text-red-400',
+    idle: 'text-slate-500', ready: 'text-green-400',
+    running: 'text-yellow-400', done: 'text-green-300', error: 'text-red-400',
+  }
+  const statusLabel: Record<string, string> = {
+    idle: 'No environment active', ready: 'Environment ready',
+    running: 'Tests running…', done: 'Run complete', error: 'Error',
   }
 
   return (
@@ -224,7 +197,9 @@ export default function SandboxPage() {
           </div>
           <div>
             <h1 className="text-xl font-black text-green-100 tracking-wide">SANDBOX</h1>
-            <p className="text-xs text-green-400/60">15 isolated environments · Click to activate, then run tests</p>
+            <p className="text-xs text-green-400/60">
+              {SANDBOX_TYPES.length} isolated environments · Click to activate, then select tests and run
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -241,15 +216,13 @@ export default function SandboxPage() {
         </div>
       </div>
 
-      {/* Config (shown when sandbox active) */}
+      {/* Run controls — shown when sandbox is active */}
       {activeId && (
         <div className="p-4 rounded-xl border border-green-900/30 space-y-3"
              style={{ background: 'rgba(0,30,10,0.5)' }}>
           <div className="flex items-center gap-2">
             <Server size={14} className="text-green-400" />
-            <span className="text-sm font-semibold text-green-200">
-              {activeSb?.name} — Configuration
-            </span>
+            <span className="text-sm font-semibold text-green-200">{activeSb?.name} — Configuration</span>
           </div>
           <div className="flex gap-3 flex-wrap">
             <div className="flex-1 min-w-48">
@@ -273,8 +246,6 @@ export default function SandboxPage() {
               />
             </div>
           </div>
-
-          {/* Run button */}
           <div className="flex items-center gap-3">
             <span className="text-xs text-green-400/50">{selected.size} tests selected</span>
             <button
@@ -292,12 +263,14 @@ export default function SandboxPage() {
       )}
 
       {/* Error */}
-      {error && <div className="p-3 rounded-lg text-sm text-red-400 border border-red-900/40 bg-red-950/30">{error}</div>}
+      {error && (
+        <div className="p-3 rounded-lg text-sm text-red-400 border border-red-900/40 bg-red-950/30">{error}</div>
+      )}
 
       {/* Progress */}
       {running && (
         <div>
-          <div className="flex items-center justify-between text-xs text-green-400/60 mb-1">
+          <div className="flex justify-between text-xs text-green-400/60 mb-1">
             <span>Sandbox tests running…</span><span>{Math.round(progress)}%</span>
           </div>
           <div className="h-1.5 rounded-full bg-green-950/60 overflow-hidden">
@@ -326,26 +299,18 @@ export default function SandboxPage() {
       )}
 
       {/* Sandbox grid */}
-      {loading && (
-        <div className="flex items-center gap-2 text-green-400/50 text-sm">
-          <Loader2 size={16} className="animate-spin" /> Loading sandbox environments…
-        </div>
-      )}
-
-      {!loading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {sandboxTypes.map(sb => (
-            <SandboxCard
-              key={sb.id}
-              sb={sb}
-              isActive={activeId === sb.id}
-              selected={selected}
-              onSelect={() => activateSandbox(sb.id)}
-              onToggleTest={toggleTest}
-            />
-          ))}
-        </div>
-      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {SANDBOX_TYPES.map(sb => (
+          <SandboxCard
+            key={sb.id}
+            sb={sb}
+            isActive={activeId === sb.id}
+            selected={selected}
+            onSelect={() => activateSandbox(sb.id)}
+            onToggleTest={toggleTest}
+          />
+        ))}
+      </div>
     </div>
   )
 }

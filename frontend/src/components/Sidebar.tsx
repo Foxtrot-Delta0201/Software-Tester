@@ -36,8 +36,8 @@ export default function Sidebar() {
           <div className="flex items-center gap-2">
             <Activity className="text-blue-400" size={20} />
             <div>
-              <div className="font-bold text-sm text-white tracking-wide">Foci</div>
-              <div className="text-xs text-slate-400">Software Tester</div>
+              <div className="font-bold text-sm text-white tracking-wide">Software Tester</div>
+              <div className="text-xs text-slate-400">QA Platform</div>
             </div>
           </div>
         </div>
@@ -123,7 +123,7 @@ export default function Sidebar() {
 
         <div className="px-5 py-3 border-t text-xs text-slate-600"
              style={{ borderColor: 'var(--border)' }}>
-          v2.0.0 · Foci Tester
+          v2.0.0 · Software Tester
         </div>
       </aside>
 
