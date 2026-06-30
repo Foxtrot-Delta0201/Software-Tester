@@ -201,31 +201,23 @@ export default function TestCatalog() {
         </button>
       </div>
 
-      {/* Upload zone */}
-      <UploadZone onUploaded={(dir) => setProjectDir(dir)} />
+      {/* Upload zone — path-first, browser-upload secondary */}
+      <UploadZone
+        projectDir={projectDir}
+        onProjectDir={setProjectDir}
+        onUploaded={(dir) => { if (dir) setProjectDir(dir) }}
+      />
 
-      {/* Config row */}
-      <div className="flex gap-3 flex-wrap">
-        <div className="flex-1 min-w-48">
-          <label className="text-xs text-slate-500 mb-1 block">Project Directory (override)</label>
-          <input
-            value={projectDir}
-            onChange={e => setProjectDir(e.target.value)}
-            placeholder="/path/to/project"
-            className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2
-                       text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500"
-          />
-        </div>
-        <div className="flex-1 min-w-48">
-          <label className="text-xs text-slate-500 mb-1 block">Target URL</label>
-          <input
-            value={targetUrl}
-            onChange={e => setTargetUrl(e.target.value)}
-            placeholder="http://localhost:3000"
-            className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2
-                       text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500"
-          />
-        </div>
+      {/* Target URL */}
+      <div className="flex-1">
+        <label className="text-xs text-slate-500 mb-1 block">Target URL <span className="text-slate-600">(for HTTP probes and security headers checks)</span></label>
+        <input
+          value={targetUrl}
+          onChange={e => setTargetUrl(e.target.value)}
+          placeholder="http://localhost:3000"
+          className="w-full bg-slate-800/60 border border-slate-700/50 rounded-lg px-3 py-2
+                     text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-blue-500"
+        />
       </div>
 
       {/* Search + select controls */}
