@@ -63,7 +63,7 @@ def _tool_available(name: str) -> bool:
     return shutil.which(name) is not None
 
 
-def _run_cmd(cmd: list[str], cwd: str, timeout: int = 120) -> tuple[int, str]:
+def _run_cmd_sync(cmd: list[str], cwd: str, timeout: int = 120) -> tuple[int, str]:
     try:
         r = subprocess.run(
             cmd, capture_output=True, text=True, cwd=cwd, timeout=timeout,
@@ -75,6 +75,10 @@ def _run_cmd(cmd: list[str], cwd: str, timeout: int = 120) -> tuple[int, str]:
         return -2, f"Tool not found: {cmd[0]}"
     except Exception as exc:
         return -3, str(exc)
+
+
+async def _run_cmd(cmd: list[str], cwd: str, timeout: int = 120) -> tuple[int, str]:
+    return await asyncio.to_thread(_run_cmd_sync, cmd, cwd, timeout)
 
 
 def _source_files(project_dir: str, exts=(".py", ".js", ".ts", ".tsx", ".jsx", ".java", ".go")) -> list[Path]:
@@ -161,7 +165,7 @@ async def _run_pytest(test: TestDef, project_dir: str) -> TestResult:
             recommendations=["Add pytest test files (test_*.py) to your project."],
         )
     report_file = os.path.join(tempfile.gettempdir(), f"foci_{test.id}.json")
-    rc, out = _run_cmd(
+    rc, out = await _run_cmd(
         [sys.executable, "-m", "pytest", project_dir,
          "--tb=short", "-q", "--timeout=60",
          f"--json-report-file={report_file}", "--json-report"],
@@ -201,7 +205,7 @@ async def _run_bandit(test: TestDef, project_dir: str) -> TestResult:
             tool_used="bandit", raw_output="bandit not installed.",
             recommendations=["Install bandit: pip install bandit"],
         )
-    rc, out = _run_cmd(
+    rc, out = await _run_cmd(
         [sys.executable, "-m", "bandit", "-r", project_dir,
          "-f", "json", "-x", ".git,node_modules,venv,.venv"],
         cwd=project_dir, timeout=120,
@@ -242,7 +246,7 @@ async def _run_pip_audit(test: TestDef, project_dir: str) -> TestResult:
             test_id=test.id, name=test.name, status="SKIPPED", score=70,
             tool_used="pip-audit", raw_output="No requirements.txt found.",
         )
-    rc, out = _run_cmd(
+    rc, out = await _run_cmd(
         [sys.executable, "-m", "pip_audit", "-r", str(req_files[0]), "--format=json"],
         cwd=project_dir, timeout=120,
     )
@@ -287,7 +291,7 @@ async def _run_locust(test: TestDef, project_dir: str, target_url: str) -> TestR
     csv_prefix = os.path.join(tempfile.gettempdir(), f"foci_locust_{test.id}")
     profile = {"load": (50, 10, "60s"), "stress": (200, 50, "60s"), "spike": (500, 200, "30s"),
                "soak": (30, 5, "120s"), "perf": (25, 5, "30s")}.get(test.id, (25, 5, "30s"))
-    rc, out = _run_cmd(
+    rc, out = await _run_cmd(
         ["locust", "-f", locustfile, "--headless",
          "-u", str(profile[0]), "-r", str(profile[1]), "-t", profile[2],
          "--host", target_url, "--csv", csv_prefix],
@@ -411,11 +415,11 @@ async def _run_pattern(test: TestDef, project_dir: str) -> TestResult:
 
 async def _run_coverage(test: TestDef, project_dir: str) -> TestResult:
     t0 = time.perf_counter()
-    rc, out = _run_cmd(
+    rc, out = await _run_cmd(
         [sys.executable, "-m", "coverage", "run", "-m", "pytest", project_dir, "-q"],
         cwd=project_dir, timeout=180,
     )
-    rc2, report = _run_cmd(
+    rc2, report = await _run_cmd(
         [sys.executable, "-m", "coverage", "report", "--format=json"],
         cwd=project_dir, timeout=30,
     )
@@ -494,7 +498,7 @@ async def _run_nmap(test: TestDef, target_url: str) -> TestResult:
             recommendations=["Install nmap: https://nmap.org/download.html"],
         )
     host = target_url.split("//")[-1].split("/")[0].split(":")[0] if target_url else "localhost"
-    rc, out = _run_cmd(["nmap", "-sV", "--top-ports", "100", "-T4", host], cwd=".", timeout=120)
+    rc, out = await _run_cmd(["nmap", "-sV", "--top-ports", "100", "-T4", host], cwd=".", timeout=120)
     elapsed = time.perf_counter() - t0
     findings: List[Finding] = []
     risky_ports = {"21": "FTP", "23": "Telnet", "3389": "RDP", "5900": "VNC", "27017": "MongoDB"}
@@ -538,7 +542,7 @@ async def _run_sslyze(test: TestDef, target_url: str) -> TestResult:
             score=score, findings=findings, duration=round(elapsed, 2), tool_used="ssl-module",
             raw_output="sslyze not installed; used Python ssl module for basic check.",
         )
-    rc, out = _run_cmd(["sslyze", "--json_out=-", target_url], cwd=".", timeout=120)
+    rc, out = await _run_cmd(["sslyze", "--json_out=-", target_url], cwd=".", timeout=120)
     elapsed = time.perf_counter() - t0
     return TestResult(
         test_id=test.id, name=test.name, status="PASS" if rc == 0 else "WARNING",

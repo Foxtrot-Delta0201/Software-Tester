@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import { X, Trophy, AlertTriangle, ShieldAlert, CheckCircle } from 'lucide-react'
-import { api, AuditHistory } from '../api'
+import { X, Trophy, AlertTriangle, ShieldAlert, CheckCircle, ArrowLeft } from 'lucide-react'
+import { api, AuditHistory, AuditReport } from '../api'
+import AuditReportView from './AuditReport'
 
 interface Props {
   onClose: () => void
@@ -29,8 +30,10 @@ function modeTag(mode?: string) {
 }
 
 export default function ResultsSidebar({ onClose }: Props) {
-  const [items,   setItems]   = useState<AuditHistory[]>([])
-  const [loading, setLoading] = useState(true)
+  const [items,     setItems]     = useState<AuditHistory[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [selected,  setSelected]  = useState<AuditReport | null>(null)
+  const [loadingId, setLoadingId] = useState<string | null>(null)
 
   useEffect(() => {
     api.history()
@@ -38,6 +41,41 @@ export default function ResultsSidebar({ onClose }: Props) {
        .catch(() => setItems([]))
        .finally(() => setLoading(false))
   }, [])
+
+  async function openAudit(jobId: string) {
+    setLoadingId(jobId)
+    try {
+      const r = await api.getAudit(jobId)
+      setSelected(r)
+    } catch {
+      // noop — audit may not exist yet
+    } finally {
+      setLoadingId(null)
+    }
+  }
+
+  // Detail view
+  if (selected) {
+    return (
+      <div className="w-[600px] flex flex-col border-r shrink-0 overflow-hidden"
+           style={{ background: 'var(--bg-surface)', borderColor: 'var(--border)' }}>
+        <div className="flex items-center gap-3 px-4 py-4 border-b shrink-0"
+             style={{ borderColor: 'var(--border)' }}>
+          <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-200 transition-colors">
+            <ArrowLeft size={16} />
+          </button>
+          <span className="text-sm font-semibold text-white">Audit Report</span>
+          <div className="flex-1" />
+          <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
+          <AuditReportView report={selected} />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="w-80 flex flex-col border-r shrink-0"
@@ -63,7 +101,12 @@ export default function ResultsSidebar({ onClose }: Props) {
           <div className="text-xs text-slate-500 text-center py-8">No audits yet.</div>
         )}
         {items.map(item => (
-          <div key={item.job_id} className="glass p-3 space-y-2">
+          <button
+            key={item.job_id}
+            onClick={() => openAudit(item.job_id)}
+            disabled={loadingId === item.job_id}
+            className="w-full text-left glass p-3 space-y-2 hover:bg-white/5 transition-colors cursor-pointer disabled:opacity-60"
+          >
             {/* Top row */}
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
@@ -90,11 +133,16 @@ export default function ResultsSidebar({ onClose }: Props) {
               <span>{item.total ?? 0} total</span>
             </div>
 
-            {/* Date */}
-            <div className="text-[10px] text-slate-600">
-              {item.generated_at ? new Date(item.generated_at).toLocaleString() : ''}
+            {/* Date + open hint */}
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] text-slate-600">
+                {item.generated_at ? new Date(item.generated_at).toLocaleString() : ''}
+              </div>
+              <span className="text-[10px] text-blue-400/60">
+                {loadingId === item.job_id ? 'Loading…' : 'Click to view →'}
+              </span>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>

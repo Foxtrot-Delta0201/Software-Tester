@@ -27,11 +27,7 @@
   to     = "/index.html"
   status = 200
 
-# Proxy /api/* to the running backend. Netlify uses the BACKEND_URL env var
-# at build time; set it in the Netlify dashboard alongside VITE_API_URL.
-# (Remove or adjust this block once you have a permanent backend URL.)
-[[redirects]]
-  from   = "/api/*"
-  to     = ":BACKEND_URL/api/:splat"
-  status = 200
-  force  = true
+# Note: no server-side /api proxy here. The frontend calls the backend
+# directly via VITE_API_URL (set it in Netlify → Environment variables).
+# ":BACKEND_URL" is not valid Netlify env-substitution syntax so the proxy
+# is left out. Set VITE_API_URL to your Railway/Render/Fly backend URL.

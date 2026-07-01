@@ -455,6 +455,13 @@ CYBER_CATEGORIES = [
     },
 ]
 
+import re as _re
+
+
+def _slug(s: str) -> str:
+    return _re.sub(r'[^a-z0-9]+', '_', s.lower()).strip('_')
+
+
 # ── Sandbox types ──────────────────────────────────────────────────────────── #
 SANDBOX_TYPES = [
     {"id": "functional_sb", "name": "Functional Sandbox",   "icon": "⚙️",  "color": "blue",
@@ -504,6 +511,35 @@ SANDBOX_TYPES = [
      "tests": ["Firmware testing","Device communication","MQTT testing","Sensor validation","OTA update testing","Embedded security"]},
 ]
 
+# ── Convert sandbox test strings → proper objects ──────────────────────────── #
+_SB_ENGINE: dict[str, str] = {
+    "functional_sb": "pytest",   "security_sb": "bandit",   "pentest_sb": "bandit",
+    "api_sb": "http_probe",      "cloud_sb": "docker",      "dev_sb": "pytest",
+    "database_sb": "db_check",   "mobile_sb": "pattern",    "browser_sb": "playwright",
+    "malware_sb": "pattern",     "ai_sb": "pytest",         "perf_sb": "locust",
+    "network_sb": "nmap",        "container_sb": "docker",  "iot_sb": "pattern",
+}
+_SB_SEVERITY: dict[str, str] = {
+    "security_sb": "critical",   "pentest_sb": "critical",  "malware_sb": "high",
+    "network_sb": "high",        "perf_sb": "high",
+}
+
+for _sb in SANDBOX_TYPES:
+    _engine  = _SB_ENGINE.get(_sb["id"], "manual")
+    _sev     = _SB_SEVERITY.get(_sb["id"], "medium")
+    _sb["tests"] = [
+        {
+            "id":          f"{_sb['id']}__{_slug(t)}",
+            "name":        t,
+            "description": f"{t} in {_sb['name']}",
+            "severity":    _sev,
+            "engine":      _engine,
+            "automated":   _engine != "manual",
+        }
+        for t in _sb["tests"]
+    ]
+
+
 # ── Master catalog ─────────────────────────────────────────────────────────── #
 ALL_TESTS: List[TestDef] = (
     FUNCTIONAL + NON_FUNCTIONAL + SECURITY + COMPAT +
@@ -512,28 +548,102 @@ ALL_TESTS: List[TestDef] = (
 
 ALL_TESTS_BY_ID: dict[str, TestDef] = {t.id: t for t in ALL_TESTS}
 
+# Register cyber tests in ALL_TESTS_BY_ID so the executor can dispatch them
+for _cat in CYBER_CATEGORIES:
+    _cat_sev = "critical" if _cat.get("color") in ("red", "orange") else "high"
+    for _t in _cat["tests"]:
+        _def = TestDef(
+            id=_t["id"],
+            name=_t["name"],
+            group=f"Cyber — {_cat['name']}",
+            category=_cat["name"],
+            description=_t.get("desc", _t["name"]),
+            engine=_t["engine"],
+            automated=_t["engine"] != "manual",
+            severity=_cat_sev,
+        )
+        ALL_TESTS_BY_ID[_def.id] = _def
 
-def get_catalog_json() -> list[dict]:
-    groups: dict[str, dict] = {}
+# Register sandbox tests in ALL_TESTS_BY_ID
+for _sb in SANDBOX_TYPES:
+    for _t in _sb["tests"]:
+        _def = TestDef(
+            id=_t["id"],
+            name=_t["name"],
+            group=f"Sandbox — {_sb['name']}",
+            category=_sb["name"],
+            description=_t["description"],
+            engine=_t["engine"],
+            automated=_t["automated"],
+            severity=_t["severity"],
+        )
+        ALL_TESTS_BY_ID[_def.id] = _def
+
+
+def get_catalog_json() -> dict:
+    """Return catalog shaped for the three frontend consumers."""
+    # groups: flat dict group_name → [test_def, ...]
+    groups: dict[str, list[dict]] = {}
     for t in ALL_TESTS:
-        if t.group not in groups:
-            groups[t.group] = {"group": t.group, "categories": {}}
-        cats = groups[t.group]["categories"]
-        if t.category not in cats:
-            cats[t.category] = {"category": t.category, "tests": []}
-        cats[t.category]["tests"].append({
+        entry = groups.setdefault(t.group, [])
+        entry.append({
             "id":          t.id,
             "name":        t.name,
+            "group":       t.group,
+            "category":    t.category,
             "description": t.description,
             "engine":      t.engine,
             "automated":   t.automated,
             "severity":    t.severity,
-            "deps":        t.deps,
+            "tags":        t.tags,
         })
-    result = []
-    for g_name, g_data in groups.items():
-        result.append({
-            "group":      g_name,
-            "categories": list(g_data["categories"].values()),
+
+    # cyber_categories: map desc → description, derive automated/severity
+    cyber_categories = []
+    for cat in CYBER_CATEGORIES:
+        sev = "critical" if cat.get("color") in ("red", "orange") else "high"
+        cyber_categories.append({
+            "id":    cat["id"],
+            "name":  cat["name"],
+            "icon":  cat.get("icon", ""),
+            "color": cat.get("color", ""),
+            "tests": [
+                {
+                    "id":          t["id"],
+                    "name":        t["name"],
+                    "engine":      t["engine"],
+                    "description": t.get("desc", t["name"]),
+                    "automated":   t["engine"] != "manual",
+                    "severity":    sev,
+                }
+                for t in cat["tests"]
+            ],
         })
-    return result
+
+    # sandbox_types: tests already converted to proper objects above
+    sandbox_types = [
+        {
+            "id":          sb["id"],
+            "name":        sb["name"],
+            "icon":        sb.get("icon", ""),
+            "color":       sb.get("color", ""),
+            "description": sb.get("purpose", ""),
+            "tests": [
+                {
+                    "id":          t["id"],
+                    "name":        t["name"],
+                    "description": t["description"],
+                    "automated":   t["automated"],
+                    "severity":    t["severity"],
+                }
+                for t in sb["tests"]
+            ],
+        }
+        for sb in SANDBOX_TYPES
+    ]
+
+    return {
+        "groups":           groups,
+        "cyber_categories": cyber_categories,
+        "sandbox_types":    sandbox_types,
+    }
